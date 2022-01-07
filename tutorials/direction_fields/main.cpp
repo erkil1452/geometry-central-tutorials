@@ -1,15 +1,13 @@
-#include "geometrycentral/surface/direction_fields.h"
-#include "geometrycentral/surface/manifold_surface_mesh.h"
-#include "geometrycentral/surface/meshio.h"
-#include "geometrycentral/surface/surface_mesh.h"
-
-#include "polyscope/polyscope.h"
-#include "polyscope/surface_mesh.h"
-
-#include "args/args.hxx"
+#include "stdafx.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
+namespace fs = std::filesystem;
+
+
+//std::vector<glm::vec3> direction2ToDir3(VertexData<Vector2> field)
+
+inline float sanitized_float(const float x) { return isfinite(x) ? x : 0; }
 
 int main(int argc, char** argv) {
 
@@ -19,6 +17,8 @@ int main(int argc, char** argv) {
   args::HelpFlag help(parser, "help", "Display this help message", {'h', "help"});
 
   args::Positional<std::string> inputFilename(parser, "mesh", "A surface mesh file (see geometry-central docs for valid formats)");
+  args::Group group(parser, "This group is all exclusive:", args::Group::Validators::DontCare);
+  args::Flag silent(group, "silent", "Silent mode", {'s', "silent"});
   // clang-format on
 
   // Parse args
@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
   std::unique_ptr<SurfaceMesh> mesh;
   std::unique_ptr<VertexPositionGeometry> geometry;
   std::tie(mesh, geometry) = readManifoldSurfaceMesh(args::get(inputFilename));
+  //std::tie(mesh, geometry) = readSurfaceMesh(args::get(inputFilename));
 
   polyscope::init();
   auto* psMesh =
@@ -60,9 +61,36 @@ int main(int argc, char** argv) {
 
 
   VertexData<Vector2> field = computeSmoothestVertexDirectionField(*geometry);
-  psMesh->addVertexIntrinsicVectorQuantity("vectors", field);
+  auto direction_quantity = dynamic_cast<polyscope::SurfaceVertexIntrinsicVectorQuantity*>(
+      psMesh->addVertexIntrinsicVectorQuantity("vectors", field));
+  direction_quantity->setEnabled(true);
+  
+  // Write out.
+  auto inputPath = fs::path(args::get(inputFilename));
+  auto outputPath = inputPath.parent_path() / (inputPath.stem().string() + "_vertex_dir_field.txt");
+  //writeSurfaceMesh(*mesh, *geometry, outputPath.string());
+  auto verts = direction_quantity->vectorRoots;
+  auto normals = psMesh->vertexNormals;
+  auto tangents = direction_quantity->vectors;
+  std::ofstream s(outputPath);
+  if (!s.is_open()) {
+    std::cout << "failed to open " << outputPath << '\n';
+  } else {
+    s << "Vertex X Y Z, Normal X Y Z, Tangent X Y Z\n";
+    for (auto i = 0; i < field.size(); i++) {
+      s << sanitized_float(verts[i].x) << " " << sanitized_float(verts[i].y) << " " << sanitized_float(verts[i].z) << " "; // pos
+      s << sanitized_float(normals[i].x) << " " << sanitized_float(normals[i].y) << " " << sanitized_float(normals[i].z) << " "; // normal
+      s << sanitized_float(tangents[i].x) << " " << sanitized_float(tangents[i].y) << " " << sanitized_float(tangents[i].z) << " "; // tangent
+      s << '\n';
+    }
+  }
+  s.close();
 
-  polyscope::show();
+  if (!silent) {
+    polyscope::show();
+  }
+
+  std::cout << "DONE." << std::endl;
 
   return EXIT_SUCCESS;
 }
