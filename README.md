@@ -7,7 +7,7 @@ Each tutorial lives in a subdirectory of
 
 On unix-like machines, use:
 ```
-git clone --recurse-submodules https://github.com/nmwsharp/geometry-central-tutorials
+git clone --recurse-submodules https://github.com/erkil1452/geometry-central-tutorials
 cd geometry-central-tutorials
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
